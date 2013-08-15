@@ -1,0 +1,925 @@
+/*
+* Copyright (c) Codiad & Andr3as, distributed
+* as-is and without warranty under the MIT License.
+* See [root]/license.md for more information. This information must remain intact.
+*/
+
+(function(global, $){
+
+    var codiad  = global.codiad,
+        scripts = document.getElementsByTagName('script'),
+        path    = scripts[scripts.length-1].src.split('?')[0],
+        curpath = path.split('/').slice(0, -1).join('/')+'/';
+    var EventEmitter    = require('ace/lib/event_emitter').EventEmitter;
+    var Range           = require('ace/range').Range;
+
+    $(function() {
+        codiad.Complete.init();
+    });
+
+    codiad.Complete = {
+        
+        path        : curpath,
+        comAdded    : false,
+        isVisible   : false,
+        prefix      : "",
+        bindKeys    : null,
+        
+        wordRegex   : /[^a-zA-Z_0-9\$\-]+/,
+        
+        //Caches
+        suggestionCache     : null,     //Cache displayed suggestions
+        suggestionTextCache : null,     //Cache suggestions of the text
+        pluginInitCache     : null,     //Cache suggestions of plugins at start of init
+        pluginCache         : null,     //Cache suggestions of plugins at start of auto complete
+        pluginMajCache      : null,     //Cache suggestions of plugins to display them matching or not
+        
+        //Default commands
+        defaultEscExec      : null,
+        defaultUpExec       : null,
+        defaultDownExec     : null,
+        defaultLeftExec     : null,
+        defaultRightExec    : null,
+        defaultEnterExec    : null,
+        defaultIndentExec   : null,
+        
+        init: function() {
+            var _this               = this;
+            
+            this.$comUp             = this.goUp.bind(this);
+            this.$comDown           = this.goDown.bind(this);
+            this.$comLeft           = this.goLeft.bind(this);
+            this.$comRight          = this.goRight.bind(this);
+            this.$comReturn         = this.enter.bind(this);
+            this.$comIndent         = this.indent.bind(this);
+            this.$comComplete       = this.complete.bind(this);
+            this.$onDocumentChange  = this.onDocumentChange.bind(this);
+            //Overwrite existing click command
+            codiad.autocomplete.complete = this.$comComplete;
+            //Register complete command
+            this.bindKeys = window.setInterval(function(){_this.setKeyBindings()},1000);
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Set key bindings and publish Complete.Init
+        //
+		//////////////////////////////////////////////////////////
+        setKeyBindings: function() {
+            var _this = this;
+            if (codiad.editor.getActive() !== null) {
+                //clear Interval
+                window.clearInterval(this.bindKeys);
+                //Publish plugin listener
+                amplify.publish("Complete.Init");
+                //Add initial keyboard command
+                var _commandManager = codiad.editor.getActive().commands;
+                _commandManager.addCommand({
+                    name: 'CompletePlus',
+                    bindKey: 'Ctrl+Space',
+                    exec: function () {
+                        _this.suggest();
+                    }
+                });
+            }
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Add keyboard command to handle user interactions
+        //
+		//////////////////////////////////////////////////////////
+        addKeyboardCommands: function() {
+            if (codiad.editor.getActive() === null) {
+                return false;
+            }
+            var _this   = this;
+            var _commandManager = codiad.editor.getActive().commands;
+            //Save default commands
+            this.defaultUpExec      = _commandManager.commands.golineup.exec;
+            this.defaultDownExec    = _commandManager.commands.golinedown.exec;
+            this.defaultLeftExec    = _commandManager.commands.gotoleft.exec;
+            this.defaultRightExec   = _commandManager.commands.gotoright.exec;
+            this.defaultIndentExec  = _commandManager.commands.indent.exec;
+            //Register new commands
+            _commandManager.commands.golineup.exec      = this.$comUp;
+            _commandManager.commands.golinedown.exec    = this.$comDown;
+            _commandManager.commands.gotoleft.exec      = this.$comLeft;
+            _commandManager.commands.gotoright.exec     = this.$comRight;
+            _commandManager.commands.indent.exec        = this.$comIndent;
+            
+            _commandManager.addCommand({
+                name: 'hidecomplete',
+                bindKey: 'Esc',
+                exec: function () {
+                    _this.hide();
+                }
+            });
+            _commandManager.addCommand({
+                name: 'ReturnToComplete',
+                bindKey: 'Return',
+                exec: this.$comReturn
+            });
+            
+            var session = codiad.editor.getActive().getSession();
+            session.addEventListener('change', this.$onDocumentChange);
+            
+            // handle click-out autoclosing.
+            var fn = function () {
+                _this.hide();
+                $(window).off('click', fn);
+            };
+            $(window).on('click', fn);
+            
+            this.comAdded   = true;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Remove keyboard commands and restore default commands
+        //
+		//////////////////////////////////////////////////////////
+        removeKeyboardCommands: function() {
+            if (codiad.editor.getActive() === null) {
+                return false;
+            }
+            //Restore default commands
+            var _commandManager = codiad.editor.getActive().commands;
+            //Make sure default exits
+            if (this.defaultUpExec !== null) {
+                _commandManager.commands.golineup.exec      = this.defaultUpExec;
+            }
+            if (this.defaultDownExec !== null) {
+                _commandManager.commands.golinedown.exec    = this.defaultDownExec;
+            }
+            if (this.defaultLeftExec !== null) {
+                _commandManager.commands.gotoleft.exec      = this.defaultLeftExec;
+            }
+            if (this.defaultRightExec !== null) {
+                _commandManager.commands.gotoright.exec     = this.defaultRightExec;
+            }
+            if (this.defaultIndentExec !== null) {
+                _commandManager.commands.indent.exec        = this.defaultIndentExec;
+            }
+            
+            _commandManager.removeCommand('hidecomplete');
+            _commandManager.removeCommand('ReturnToComplete');
+            var session = codiad.editor.getActive().getSession();
+            session.removeEventListener('change', this.$onDocumentChange);
+            this.comAdded   = false;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Suggest
+        //
+        //  Parameter:
+        //
+        //  position - (Optional) - {Object} - Position of the cursor
+        //
+		//////////////////////////////////////////////////////////
+        suggest: function(position) {
+            if (codiad.editor.getActive() === null) {
+                this.hide();
+                return false;
+            }
+            //Get prefix
+            if (typeof(position) == 'undefined') {
+                position    = codiad.editor.getActive().getCursorPosition();
+            }
+            var token   = codiad.editor.getActive().getSession().getTokenAt(position.row,position.column);
+            //Get text before cursor
+            var prefix  = token.value.substr(0, position.column - token.start);
+            prefix      = prefix.split(this.wordRegex).slice(-1)[0];
+            //Get the current line
+            var text    = codiad.editor.getActive().getSession().getValue();
+            var line    = text.split("\n")[position.row];
+            //Get content before prefix
+            var range   = new Range(position.row,0,position.row,position.column);
+            var value   = codiad.editor.getActive().getSession().getTextRange(range);
+            var syntax  = $('#current-mode').text();
+            //Get current file
+            var file    = codiad.editor.getActive().getSession().path;
+            var publishObj  = {"prefix": prefix, "before": value, "syntax": syntax, "line": line, "token": token, "position": position, "file": file };
+            this.prefix = prefix;
+            this.suggestionTextCache = this.getTextSuggestions();
+            //Remove old plugin data
+            this.pluginMajCache = [];
+            this.pluginCache    = [];
+            //Publish for Plugins
+            amplify.publish( "Complete.Normal", publishObj);
+            amplify.publish( "Complete.Major", publishObj);
+            
+            var matches, fuzzilies;
+            if (prefix !== "") {
+                matches     = this.getMatches(prefix, this.suggestionTextCache);
+                fuzzilies   = this.getFuzzilies(prefix, this.suggestionTextCache);
+            } else {
+                matches     = [];
+                fuzzilies   = [];
+            }
+            
+            var pluginSugs  = this.pluginInitCache;
+            if (pluginSugs === null || pluginSugs.length === 0) {
+                pluginSugs  = this.pluginCache;
+            } else {
+                pluginSugs  = this.push(pluginSugs ,this.pluginCache);
+            }
+            var pluginMatches   = this.getMatches(prefix, pluginSugs);
+            var pluginFuzzilies = this.getFuzzilies(prefix, pluginSugs);
+            //Add type info
+            matches             = this.addExtraInfo(matches, "type", "text");
+            fuzzilies           = this.addExtraInfo(fuzzilies, "type", "text");
+            
+            pluginMatches       = this.addExtraInfo(pluginMatches, "type", "plugin");
+            pluginFuzzilies     = this.addExtraInfo(pluginFuzzilies, "type", "plugin");
+            this.pluginMajCache = this.addExtraInfo(this.pluginMajCache, "type", "plugin");
+            //Remove double entries
+            fuzzilies           = this.removeDoubleEntries(matches, fuzzilies);
+            pluginFuzzilies     = this.removeDoubleEntries(pluginMatches, pluginFuzzilies);
+            //Remove entries in textArray, which are defined in pluginArray
+            matches             = this.removeDoubleEntries(pluginMatches, matches);
+            fuzzilies           = this.removeDoubleEntries(pluginFuzzilies, fuzzilies);
+            //Combine plugin und text matches
+            matches     = this.push(matches, pluginMatches);
+            fuzzilies   = this.push(fuzzilies, pluginFuzzilies);
+            //Remove empty arrays
+            matches     = this.removeEmptyArrays(matches);
+            fuzzilies   = this.removeEmptyArrays(fuzzilies);
+            //Rank suggestions
+            matches     = this.rankSuggestions(prefix, matches);
+            fuzzilies   = this.rankSuggestions(prefix, fuzzilies);
+            //Combine matches and fuzzilies
+            var pluginMaj   = this.pluginMajCache;
+            var sugs        = pluginMaj;
+            sugs            = this.push(sugs, matches);
+            sugs            = this.push(sugs, fuzzilies);
+            //Remove empty arrays
+            sugs = this.removeEmptyArrays(sugs);
+            if (sugs.length === 0) {
+                this.hide();
+                return false;
+            }
+            this.suggestionCache = sugs;
+            this.show();
+            return true;
+        },
+        
+        /*
+            Array - [{
+                        title - Title of the suggestions to display
+                        suggestion - Suggestions to insert
+                        ranking - Suggestion to rank
+                        callback - "Amplify Topic" -> amplify.publish(callback, {Array of the Suggestion})
+                            wenn callback == "" -> macht CompletePlus die ersetzung aufgrundlage von suggestion
+                        },{...}]
+        */
+        //////////////////////////////////////////////////////////
+        //
+        //  Function for plugins to add their suggestions
+        //
+        //  Parameter:
+        //
+        //  sug - {Object/Array} - Suggestion(s) to add
+        //
+		//////////////////////////////////////////////////////////
+        pluginInit: function(sug) {
+            return this.pluginSuggest("pluginInitCache", sug);
+        },
+        
+        pluginNormal: function(sug) {
+            return this.pluginSuggest("pluginCache", sug);
+        },
+        
+        pluginMajor: function(sug) {
+            return this.pluginSuggest("pluginMajCache", sug);
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Function to add suggestions of plugins
+        //
+        //  PRIVATE - ! DO NOT USE !
+        //
+        //  Parameter:
+        //
+        //  sugArray - {String} - Array to add the suggestion
+        //  sug - {Object/Array} - Suggestion(s) to add
+        //
+        //////////////////////////////////////////////////////////
+        pluginSuggest: function(sugArray, sug) {
+            if (typeof(sug) == 'undefined' || sug === null || sug.length === 0) {
+                return false;
+            }
+            if (this[sugArray] === null) {
+                this[sugArray] = [];
+            }
+            this[sugArray] = this.push(this[sugArray], sug);
+            return true;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Complete the current active suggestin or publish it 
+        //      for a plugin
+        //
+        //////////////////////////////////////////////////////////
+        complete: function() {
+            var sug     = $('.active-suggestion').attr("data-suggestion");
+            var type    = $('.active-suggestion').attr("data-type");
+            
+            var resultObj = this.getObjectOutArray(sug, this.suggestionCache);
+            
+            if (type == "plugin") {
+                if (resultObj === false) {
+                    this.hide();
+                    return false;
+                }
+                if (resultObj.callback !== "") {
+                    this.hide();
+                    //Workaround for return command
+                    setTimeout(function(){
+                        amplify.publish(resultObj.callback, resultObj);
+                    },1);
+                    return true;
+                }
+            }
+            //Insert suggestion
+            this.replacePrefix(resultObj.suggestion);
+            this.hide();
+            return true;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Activate suggestion over the current active
+        //
+        //////////////////////////////////////////////////////////
+        goUp: function() {
+            var entries = $('.suggestion');
+            if (entries.length == 1) {
+                return false;
+            }
+            for (var i = 0; i < entries.length; i++) {
+                if ($(entries[i]).hasClass('active-suggestion')) {
+                    if ($('.suggestion:first').hasClass('active-suggestion')) {
+                        $('.suggestion:last').addClass('active-suggestion');
+                    } else {
+                        $(entries[i-1]).addClass('active-suggestion');
+                    }
+                    $(entries[i]).removeClass('active-suggestion');
+                    return true;
+                }
+            }
+            return false;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Activate suggestion under the current active
+        //
+        //////////////////////////////////////////////////////////
+        goDown: function() {
+            var entries = $('.suggestion');
+            if (entries.length == 1) {
+                return false;
+            }
+            for (var i = 0; i < entries.length; i++) {
+                if ($(entries[i]).hasClass('active-suggestion')) {
+                    if ($('.suggestion:last').hasClass('active-suggestion')) {
+                        $('.suggestion:first').addClass('active-suggestion');
+                    } else {
+                        $(entries[i+1]).addClass('active-suggestion');
+                    }
+                    $(entries[i]).removeClass('active-suggestion');
+                    return true;
+                }
+            }
+            return false;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Handle left key
+        //
+        //////////////////////////////////////////////////////////
+        goLeft: function() {
+            this.hide();
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Handle right key
+        //
+        //////////////////////////////////////////////////////////
+        goRight: function() {
+            this.complete();
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Handle tab key
+        //
+        //////////////////////////////////////////////////////////
+        indent: function() {
+            this.complete();
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Handle return key
+        //
+        //////////////////////////////////////////////////////////
+        enter: function() {
+            this.complete();
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Handle document change
+        //
+        //////////////////////////////////////////////////////////
+        onDocumentChange: function (e) {
+            if (e.data.text.search(/^\s+$/) !== -1) {
+                this.hide();
+                return;
+            }
+            
+            var position = null;
+            if (e.data.action === 'insertText') {
+                position = e.data.range.end;
+            } else if (e.data.action === 'removeText') {
+                position = e.data.range.start;
+            } else {
+                alert('Unkown document change action.');
+            }
+            
+            if (!this.suggest(position)){
+                this.hide();
+            }
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Show autocomplete dialog
+        //
+        //////////////////////////////////////////////////////////
+        show: function() {
+            if (!this.isVisible) {
+                this.isVisible = true;
+                var popup = $('#autocomplete');
+                popup.css({
+                    'top': this._computeTopOffset(),
+                    'left': this._computeLeftOffset(),
+                    'font-family': $('.ace_editor').css('font-family'),
+                    'font-size': $('.ace_editor').css('font-size')
+                });
+                popup.slideToggle('fast', function(){
+                    $(this).css('overflow', '');
+                });
+                
+                this.addKeyboardCommands();
+            }
+            //Remove old suggestions
+            $('#suggestions').html("");
+            for (var i = 0; i < this.suggestionCache.length; i++) {
+                this.insertSuggestion(this.suggestionCache[i]);
+            }
+            //Select first suggestion
+            $('.suggestion:first').addClass('active-suggestion');
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Hide autocomplete dialog
+        //
+        //////////////////////////////////////////////////////////
+        hide: function() {
+            if (this.isVisible) {
+                this.isVisible = false;
+                $('#autocomplete').hide();
+                this.suggestionCache        = null;
+                this.suggestionTextCache    = null;
+                this.pluginCache            = null;
+                this.pluginMajCache         = null;
+                
+                this.removeKeyboardCommands();
+            }            
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Insert suggestion to autocomplete dialog
+        //
+        //  Parameter:
+        //
+        //  sug - {Object} - Suggestion to insert
+        //
+        //////////////////////////////////////////////////////////
+        insertSuggestion: function(sug) {
+            if (sug === null || sug == [] || typeof(sug) == 'undefined') {
+                return false;
+            }
+            var insText = '<li class="suggestion" ';
+            if (sug.type == "plugin") {
+                insText += 'data-type="plugin" data-suggestion="'+sug.suggestion+'" data-callback="'+sug.callback+'" ';
+                insText += '>'+sug.title+'</li>';
+            } else {
+                var indexes = this.removeNegativeIndexes(codiad.autocomplete.getMatchIndexes(this.prefix, sug.suggestion));
+                var title = "";
+                for (var i = 0; i < sug.suggestion.length; i++) {
+                    if (indexes.indexOf(i) != -1) {
+                        title += '<span class="matched">'+sug.suggestion[i]+'</span>';
+                    } else {
+                        title += sug.suggestion[i];
+                    }
+                }
+                insText += 'data-type="text" data-suggestion="'+sug.suggestion+'">'+title+'</li>';
+            }
+            $('#suggestions').append(insText);
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Get every suggestion of the text
+        //
+        //////////////////////////////////////////////////////////
+        getTextSuggestions: function() {
+            if (this.suggestionTextCache !== null) {
+                return this.suggestionTextCache;
+            }
+            var buf     = "";
+            var marker  = "__complete_markerword__";
+            var position= codiad.editor.getActive().getCursorPosition();
+            var text    = codiad.editor.getActive().getSession().getValue();
+            text        = text.split("\n");
+            for (var i = 0; i < position.row; i++) {
+                buf += text[i];
+            }
+            buf += text[position.row].substring(0, position.column) + marker + text[position.row].substring(position.column);
+            for (i++; i < text.length; i++) {
+                buf += text[i];
+            }
+            var sugBuf  = buf.split(this.wordRegex);
+            var sugs    = [];
+            for (i = 0; i < sugBuf.length; i++) {
+                if ((sugBuf[i] !== "") &&(sugBuf[i].search(marker) == -1)) {
+                    //Get each value just one time
+                    if (sugs.indexOf(sugBuf[i]) == -1) {
+                        sugs.push(sugBuf[i]);
+                    }
+                }
+            }
+            //Formatting array
+            var result = [];
+            for (i = 0; i < sugs.length; i++) {
+                result.push({"suggestion":sugs[i], "ranking": sugs[i]});
+            }
+            return result;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Get matching suggestions
+        //
+        //  Parameter:
+        //
+        //  prefix - {String} - Prefix
+        //  sugCache - {Array} - Suggestion to check
+        //
+        //////////////////////////////////////////////////////////
+        getMatches: function(prefix, sugCache) {
+            var score;
+            var buf = [];
+            if (sugCache === null || typeof(sugCache) == 'undefined' || sugCache.length === 0) {
+                return [];
+            }
+            for (var i = 0; i < sugCache.length; i++) {
+                score = codiad.autocomplete.computeSimpleMatchScore(prefix, sugCache[i].ranking);
+                if (score == prefix.length) {
+                    buf.push(sugCache[i]);
+                }
+            }
+            return buf;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Get fuzzilies
+        //
+        //  Parameter:
+        //
+        //  prefix - {String} - Prefix
+        //  sugCache - {Array} - Suggestion to check
+        //
+        //////////////////////////////////////////////////////////
+        getFuzzilies: function(prefix, sugCache) {
+            var buf = [];
+            if (sugCache === null || typeof(sugCache) == 'undefined' || sugCache.length === 0) {
+                return [];
+            }
+            for (var i = 0; i < sugCache.length; i++) {
+                if (codiad.autocomplete.isMatchingFuzzily(prefix, sugCache[i].ranking)) {
+                    buf.push(sugCache[i]);
+                }                
+            }
+            return buf;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Add an extra information to each object of an array
+        //
+        //  Parameter:
+        //
+        //  cache - {Array} - Array of objects
+        //  type - {String} - Object element to add information
+        //  kind - {various} - Extra information to add
+        //
+        //////////////////////////////////////////////////////////
+        addExtraInfo: function(cache, type, kind) {
+            if (cache === null || typeof(cache) == 'undefined' || cache.length === 0) {
+                return [];
+            }
+            for (var i = 0; i < cache.length; i++) {
+                cache[i][type] = kind;
+            }
+            return cache;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Rank suggestions
+        //
+        //  Parameter:
+        //
+        //  prefix - {String} - Prefix
+        //  sugCache - {Array} - Suggestion to rank
+        //
+        //////////////////////////////////////////////////////////
+        rankSuggestions: function(prefix, sugCache) {
+            var _this = this;
+            if (sugCache === null || typeof(sugCache) == 'undefined' || sugCache.length === 0) {
+                return [];
+            }
+            return sugCache.sort(function(a, b) {
+                if (a == b) {
+                    return 0;
+                }
+                var aScore = codiad.autocomplete.getMatchIndexes(prefix, a.ranking);
+                var bScore = codiad.autocomplete.getMatchIndexes(prefix, b.ranking);
+                aScore = _this.removeNegativeIndexes(aScore);
+                bScore = _this.removeNegativeIndexes(bScore);
+                var result = aScore.length-bScore.length;
+                if (result === 0) {
+                    var buf = [a.ranking, b.ranking];
+                    buf.sort();
+                    if (buf[0] === a.ranking) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                } else {
+                    return result;
+                }
+            });
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Remove negative integer elements of an array
+        //
+        //  Parameter:
+        //
+        //  buf - {Array} - Array to remove from
+        //
+        //////////////////////////////////////////////////////////
+        removeNegativeIndexes: function(buf) {
+            var result = [];
+            for (var i = 0; i < buf.length; i++) {
+                if (buf[i] != -1) {
+                    result.push(buf[i]);
+                }
+            }
+            return result;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Remove double entries of the second array
+        //
+        //  Parameter:
+        //
+        //  one - {Array} - Array with entries to keep
+        //  two - {Array} - Array with entries to discard
+        //
+        //////////////////////////////////////////////////////////
+        removeDoubleEntries: function(one, two) {
+            var buf = [];
+            for (var i = 0; i < two.length; i++) {
+                if (!this.isInArraySpecial(two[i].ranking, one)) {
+                    buf.push(two[i]);
+                }
+            }
+            return buf;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Search in array for element (MyOne)
+        //
+        //  Parameter:
+        //
+        //  element - {various} - Element to search for
+        //  buf - {Array} - Array to search in
+        //
+        //////////////////////////////////////////////////////////
+        isInArraySpecial: function(element, buf) {
+            for (var i = 0; i < buf.length; i++) {
+                if (buf[i].ranking === element) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Return element out of buf defined by needle
+        //
+        //  Parameter:
+        //
+        //  needle - {String} - Suggestion text as needle
+        //  buf - {Array} - Array to search in
+        //
+        //////////////////////////////////////////////////////////
+        getObjectOutArray: function(needle, buf) {
+            for (var i = 0; i < buf.length; i++) {
+                if (buf[i].suggestion === needle) {
+                    return buf[i];
+                }
+            }
+            return false;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Push an array or an element to an array
+        //
+        //  Parameter:
+        //
+        //  cache - {Array} - Array push element in
+        //  buf - {Array/Element} - Element or Elements to push
+        //
+        //////////////////////////////////////////////////////////
+        push: function(cache, buf) {
+            if (cache.length === 0) {
+                return buf;
+            }
+            if ($.isArray(buf)) {
+                for (var i = 0; i < buf.length; i++) {
+                    cache.push(buf[i]);
+                }
+            } else {
+                cache.push(buf);
+            }            
+            return cache;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Remove empty arrays of an array
+        //
+        //  Parameter:
+        //
+        //  cache - {Array}
+        //
+        //////////////////////////////////////////////////////////
+        removeEmptyArrays: function(cache) {
+            var buf = [];
+            for (var i = 0; i < cache.length; i++) {
+                if (cache[i].length !== 0) {
+                    buf.push(cache[i]);
+                }                
+            }
+            return buf;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Compute top offset for autocomplete dialog
+        //
+        //////////////////////////////////////////////////////////
+        _computeTopOffset: function() {
+            var position = codiad.editor.getActive().getCursorPosition();
+            var cursor = $('.ace_gutter-cell:contains("'+ (position.row+1) +'")');
+            if (cursor.length > 0) {
+                var fontSize = codiad.editor.getActive().container.style.fontSize.replace('px', '');
+                var interLine = 1.7;
+                cursor = $(cursor[0]);
+                var top = cursor.offset().top + fontSize * interLine;
+                return top;
+            }
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Compute left offset for autocomplete dialog
+        //
+        //////////////////////////////////////////////////////////
+        _computeLeftOffset: function() {
+            var cursor = $('.ace_cursor');
+            if (cursor.length > 0) {
+                var position = codiad.editor.getActive().getCursorPosition();
+                var line = $('.ace_gutter-cell:contains("'+ (position.row+1) +'")');
+                for (var i = 0; i < cursor.length; i++) {
+                    if ($(cursor[i]).offset().top == $(line).offset().top) {
+                        return $(cursor[i]).offset().left;
+                    }
+                }
+                cursor = $(cursor[0]);
+                var left = cursor.offset().left;
+                return left;
+            }
+        },
+        
+        /*{
+            title - Title of the suggestions to display
+            suggestion - Suggestions to insert
+            ranking - Suggestion to rank
+            callback - "Amplify Topic" -> amplify.publish(callback, {Array of the Suggestion})
+                wenn callback == "" -> macht CompletePlus die ersetzung aufgrundlage von suggestion
+            }*/
+        //////////////////////////////////////////////////////////
+        //
+        //  Parse an suggestion for a plugin
+        //
+        //  Parameter:
+        //
+        //  sug - (Required) - {String} - Suggestion
+        //  rank - (Optional) - {String} - Text to rank suggestion
+        //  title - (Optional) - {String} - Text to display in autocomplete dialog
+        //  callback - (Optional) - {String} - Amplify callback topic
+        //
+        //////////////////////////////////////////////////////////
+        pluginParser: function (sug, rank, title, callback) {
+            if (sug === null || typeof(sug) == 'undefined' || sug === "") {
+                return false;
+            }
+            if (rank === null || typeof(rank) == 'undefined' || rank === "") {
+                rank = sug;
+            }
+            if (title === null || typeof(title) == 'undefined' || title === "") {
+                title = sug;
+            }
+            if (callback === null || typeof(callback) == 'undefined') {
+                callback = "";
+            }
+            var obj = {
+                    "title": title,
+                    "suggestion": sug,
+                    "ranking": rank,
+                    "callback": callback
+                };
+            return obj;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Replace prefix at the current position with suggestion
+        //
+        //  Parameter:
+        //
+        //  suggestion - {String} - Text to replace with
+        //
+        //////////////////////////////////////////////////////////
+        replacePrefix: function(suggestion) {
+            if (codiad.editor.getActive() === null) {
+                this.hide();
+                return false;
+            }
+            var editor      = codiad.editor.getActive();
+            var session     = editor.getSession();
+            var position    = editor.getCursorPosition();
+            
+            /* Get the length of the word being typed. */
+            var token = session.getTokenAt(position.row, position.column);
+            if (!token) {
+                /* No token at the given position. */
+                this.hide();
+                return false;
+            }
+            
+            var prefix = token.value.substr(0, position.column - token.start);
+            var prefixLength = prefix.split(this.wordRegex).slice(-1)[0].length;
+            
+            var range = new Range(position.row,
+                                position.column - prefixLength,
+                                position.row,
+                                position.column);
+            session.replace(range, suggestion);
+            return true;
+        }
+    };
+
+})(this, jQuery);
