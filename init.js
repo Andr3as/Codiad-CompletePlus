@@ -898,6 +898,9 @@
                 this.hide();
                 return false;
             }
+            if (typeof(suggestion) == 'undefined' || suggestion === null) {
+                return false;
+            }
             var editor      = codiad.editor.getActive();
             var session     = editor.getSession();
             var position    = editor.getCursorPosition();
