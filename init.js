@@ -76,7 +76,10 @@
                 var _commandManager = codiad.editor.getActive().commands;
                 _commandManager.addCommand({
                     name: 'CompletePlus',
-                    bindKey: 'Ctrl+Space',
+                    bindKey: {
+                        "win": "Ctrl-Space",
+                        "mac": "Command-Space"
+                    },
                     exec: function () {
                         _this.suggest();
                     }
