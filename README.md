@@ -9,4 +9,4 @@ Alternative autocomplete for Codiad, expandable by plugins
 
 ##How to use the api
 
-Take a look on the wiki.
+[https://github.com/Andr3as/Codiad-CompletePlus/wiki](Take a look on the Wiki)
