@@ -23,7 +23,6 @@
         comAdded    : false,
         isVisible   : false,
         prefix      : "",
-        bindKeys    : null,
         
         wordRegex   : /[^a-zA-Z_0-9\$\-]+/,
         
@@ -57,7 +56,9 @@
             //Overwrite existing click command
             codiad.autocomplete.complete = this.$comComplete;
             //Register complete command
-            this.bindKeys = window.setInterval(function(){_this.setKeyBindings()},1000);
+            amplify.subscribe('active.onOpen', function(path){
+                _this.setKeyBindings();
+            });
         },
         
         //////////////////////////////////////////////////////////
@@ -264,7 +265,12 @@
                 return false;
             }
             this.suggestionCache = sugs;
-            this.show();
+            if (sugs.length == 1) {
+                //Complete without dialog
+                this.complete(sugs[0]);
+            } else {
+                this.show();
+            }
             return true;
         },
         
@@ -326,29 +332,36 @@
         //  Complete the current active suggestin or publish it 
         //      for a plugin
         //
+        //  Parameters:
+        //
+        //  suggestion - {Object} - Object to complete current suggestion
+        //
         //////////////////////////////////////////////////////////
-        complete: function() {
+        complete: function(object) {
             var sug     = $('.active-suggestion').attr("data-suggestion");
             var type    = $('.active-suggestion').attr("data-type");
             
-            var resultObj = this.getObjectOutArray(sug, this.suggestionCache);
+            if (typeof(object) == 'undefined') {
+                object = this.getObjectOutArray(sug, this.suggestionCache);
+            }
             
-            if (type == "plugin") {
-                if (resultObj === false) {
-                    this.hide();
-                    return false;
-                }
-                if (resultObj.callback !== "") {
+            if (object === false) {
+                this.hide();
+                return false;
+            }
+            
+            if (object.type == "plugin") {
+                if (object.callback !== "") {
                     this.hide();
                     //Workaround for return command
                     setTimeout(function(){
-                        amplify.publish(resultObj.callback, resultObj);
+                        amplify.publish(object.callback, object);
                     },1);
                     return true;
                 }
             }
             //Insert suggestion
-            this.replacePrefix(resultObj.suggestion);
+            this.replacePrefix(object.suggestion);
             this.hide();
             return true;
         },
@@ -501,13 +514,13 @@
             if (this.isVisible) {
                 this.isVisible = false;
                 $('#autocomplete').hide();
-                this.suggestionCache        = null;
-                this.suggestionTextCache    = null;
-                this.pluginCache            = null;
-                this.pluginMajCache         = null;
                 
                 this.removeKeyboardCommands();
-            }            
+            }
+            this.suggestionCache        = null;
+            this.suggestionTextCache    = null;
+            this.pluginCache            = null;
+            this.pluginMajCache         = null;
         },
         
         //////////////////////////////////////////////////////////
