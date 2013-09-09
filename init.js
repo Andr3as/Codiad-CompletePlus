@@ -111,6 +111,12 @@
             _commandManager.commands.gotoleft.exec      = this.$comLeft;
             _commandManager.commands.gotoright.exec     = this.$comRight;
             _commandManager.commands.indent.exec        = this.$comIndent;
+            //Overwrite multiselection rule
+            _commandManager.commands.golineup.multiSelectAction      = "";
+            _commandManager.commands.golinedown.multiSelectAction    = "";
+            _commandManager.commands.gotoleft.multiSelectAction      = "";
+            _commandManager.commands.gotoright.multiSelectAction     = "";
+            _commandManager.commands.indent.multiSelectAction        = "";
             
             _commandManager.addCommand({
                 name: 'hidecomplete',
@@ -165,6 +171,13 @@
             if (this.defaultIndentExec !== null) {
                 _commandManager.commands.indent.exec        = this.defaultIndentExec;
             }
+            
+            //Restore multiselection rule
+            _commandManager.commands.golineup.multiSelectAction      = "forEach";
+            _commandManager.commands.golinedown.multiSelectAction    = "forEach";
+            _commandManager.commands.gotoleft.multiSelectAction      = "forEach";
+            _commandManager.commands.gotoright.multiSelectAction     = "forEach";
+            _commandManager.commands.indent.multiSelectAction        = "forEach";
             
             _commandManager.removeCommand('hidecomplete');
             _commandManager.removeCommand('ReturnToComplete');
@@ -356,7 +369,7 @@
                     //Workaround for return command
                     setTimeout(function(){
                         amplify.publish(object.callback, object);
-                    },1);
+                    },0);
                     return true;
                 }
             }
@@ -910,33 +923,48 @@
         //
         //////////////////////////////////////////////////////////
         replacePrefix: function(suggestion) {
+            var _this = this;
             if (codiad.editor.getActive() === null) {
-                this.hide();
                 return false;
             }
             if (typeof(suggestion) == 'undefined' || suggestion === null) {
                 return false;
             }
-            var editor      = codiad.editor.getActive();
-            var session     = editor.getSession();
-            var position    = editor.getCursorPosition();
+            //Complete function
+            var fn = function(position) {
+                var editor  = codiad.editor.getActive();
+                var session = editor.getSession();
+                /* Get the length of the word being typed. */
+                var token = session.getTokenAt(position.row, position.column);
+                if (!token) {
+                    /* No token at the given position. */
+                    return false;
+                }
+                
+                var prefix = token.value.substr(0, position.column - token.start);
+                var prefixLength = prefix.split(_this.wordRegex).slice(-1)[0].length;
+                
+                var range = new Range(position.row,
+                                    position.column - prefixLength,
+                                    position.row,
+                                    position.column);
+                session.replace(range, suggestion);
+                return true;
+            };
             
-            /* Get the length of the word being typed. */
-            var token = session.getTokenAt(position.row, position.column);
-            if (!token) {
-                /* No token at the given position. */
-                this.hide();
-                return false;
+            var editor = codiad.editor.getActive();
+            if (editor.inMultiSelectMode) {
+                //Multiselection
+                var multiRanges = editor.multiSelect.getAllRanges();
+                var result = [];
+                var one;
+                for (var i = 0; i < multiRanges.length; i++) {
+                    fn(multiRanges[i].cursor);
+                }
+            } else {
+                //Singleselection
+                fn(editor.getCursorPosition());
             }
-            
-            var prefix = token.value.substr(0, position.column - token.start);
-            var prefixLength = prefix.split(this.wordRegex).slice(-1)[0].length;
-            
-            var range = new Range(position.row,
-                                position.column - prefixLength,
-                                position.row,
-                                position.column);
-            session.replace(range, suggestion);
             return true;
         }
     };
