@@ -79,7 +79,7 @@
                     name: 'CompletePlus',
                     bindKey: {
                         "win": "Ctrl-Space",
-                        "mac": "Command-Space"
+                        "mac": "Ctrl-Space"
                     },
                     exec: function () {
                         _this.suggest();
