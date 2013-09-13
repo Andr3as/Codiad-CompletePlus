@@ -10,8 +10,8 @@
         scripts = document.getElementsByTagName('script'),
         path    = scripts[scripts.length-1].src.split('?')[0],
         curpath = path.split('/').slice(0, -1).join('/')+'/';
-    var EventEmitter    = require('ace/lib/event_emitter').EventEmitter;
-    var Range           = require('ace/range').Range;
+    var EventEmitter    = ace.require('ace/lib/event_emitter').EventEmitter;
+    var Range           = ace.require('ace/range').Range;
 
     $(function() {
         codiad.Complete.init();
@@ -24,6 +24,7 @@
         isVisible   : false,
         prefix      : "",
         
+        api         : 1.0,
         wordRegex   : /[^a-zA-Z_0-9\$\-]+/,
         
         //Caches
@@ -59,6 +60,11 @@
             amplify.subscribe('active.onOpen', function(path){
                 _this.setKeyBindings();
             });
+            //Get init data
+            setTimeout(function(){
+                //Publish plugin listener
+                amplify.publish("Complete.Init");
+            }, 1000);
         },
         
         //////////////////////////////////////////////////////////
@@ -69,10 +75,6 @@
         setKeyBindings: function() {
             var _this = this;
             if (codiad.editor.getActive() !== null) {
-                //clear Interval
-                window.clearInterval(this.bindKeys);
-                //Publish plugin listener
-                amplify.publish("Complete.Init");
                 //Add initial keyboard command
                 var _commandManager = codiad.editor.getActive().commands;
                 _commandManager.addCommand({
@@ -592,7 +594,7 @@
             var sugBuf  = buf.split(this.wordRegex);
             var sugs    = [];
             for (i = 0; i < sugBuf.length; i++) {
-                if ((sugBuf[i] !== "") &&(sugBuf[i].search(marker) == -1)) {
+                if ((sugBuf[i] !== "") && (sugBuf[i].search(marker) == -1)) {
                     //Get each value just one time
                     if (sugs.indexOf(sugBuf[i]) == -1) {
                         sugs.push(sugBuf[i]);
