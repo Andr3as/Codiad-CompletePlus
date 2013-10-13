@@ -207,6 +207,10 @@
                 position    = codiad.editor.getActive().getCursorPosition();
             }
             var token   = codiad.editor.getActive().getSession().getTokenAt(position.row,position.column);
+            if (token === null) {
+                this.hide();
+                return false;
+            }
             //Get text before cursor
             var prefix  = token.value.substr(0, position.column - token.start);
             prefix      = prefix.split(this.wordRegex).slice(-1)[0];
@@ -359,9 +363,8 @@
             if (typeof(object) == 'undefined') {
                 object = this.getObjectOutArray(sug, this.suggestionCache);
             }
-            
+            this.hide();
             if (object === false) {
-                this.hide();
                 return false;
             }
             
@@ -377,7 +380,6 @@
             }
             //Insert suggestion
             this.replacePrefix(object.suggestion);
-            this.hide();
             return true;
         },
         
@@ -585,11 +587,11 @@
             var text    = codiad.editor.getActive().getSession().getValue();
             text        = text.split("\n");
             for (var i = 0; i < position.row; i++) {
-                buf += text[i];
+                buf += "\n"+text[i];
             }
             buf += text[position.row].substring(0, position.column) + marker + text[position.row].substring(position.column);
             for (i++; i < text.length; i++) {
-                buf += text[i];
+                buf += "\n"+text[i];
             }
             var sugBuf  = buf.split(this.wordRegex);
             var sugs    = [];
