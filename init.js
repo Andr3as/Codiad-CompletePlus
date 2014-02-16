@@ -27,6 +27,8 @@
         api         : 1.0,
         wordRegex   : /[^a-zA-Z_0-9\$\-]+/,
         
+        extensions	: {},   //Autocomplete extensions
+        
         //Caches
         suggestionCache     : null,     //Cache displayed suggestions
         suggestionTextCache : null,     //Cache suggestions of the text
@@ -45,6 +47,12 @@
         
         init: function() {
             var _this               = this;
+            //Load extensions
+            $.getJSON(this.path + 'controller.php?action=getExtensions', function(result) {
+				$.each(result.extensions, function(i, ext){
+					$.getScript(_this.path + 'extensions/' + ext);
+				});
+            });
             
             this.$comUp             = this.goUp.bind(this);
             this.$comDown           = this.goDown.bind(this);
@@ -58,7 +66,7 @@
             codiad.autocomplete.complete = this.$comComplete;
             //Register complete command
             amplify.subscribe('active.onOpen', function(path){
-                _this.setKeyBindings();
+                setTimeout(_this.setKeyBindings(), 50);
             });
             //Get init data
             setTimeout(function(){
@@ -970,6 +978,30 @@
                 fn(editor.getCursorPosition());
             }
             return true;
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Test if needle is at the end of string
+        //
+        //  Parameters:
+        //
+        //  string - {String} - String to search in
+        //  needle - {String} - Needle to search for
+        //
+        //////////////////////////////////////////////////////////
+        isAtEnd: function(string, needle) {
+            var pos = string.lastIndexOf(needle);
+            if (pos != -1) {
+                var part = string.substring(pos);
+                if (part === needle) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
         }
     };
 
