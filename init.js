@@ -481,6 +481,7 @@
         //
         //////////////////////////////////////////////////////////
         onDocumentChange: function (e) {
+            var _this = this;
             if (e.data.text.search(/^\s+$/) !== -1) {
                 this.hide();
                 return;
@@ -495,9 +496,11 @@
                 alert('Unkown document change action.');
             }
             
-            if (!this.suggest(position)){
-                this.hide();
-            }
+            setTimeout(function(){
+                if (!_this.suggest(position)){
+                    _this.hide();
+                }
+            }, 0);
         },
         
         //////////////////////////////////////////////////////////
