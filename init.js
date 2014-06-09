@@ -604,11 +604,13 @@
             var color = function(title) {
                 var indexes = _this.removeNegativeIndexes(codiad.autocomplete.getMatchIndexes(_this.prefix, title));
                 var colored = "";
+                var char	= "";
                 for (var i = 0; i < title.length; i++) {
+                    char = $('<div/>').text(title[i]).html();
                     if (indexes.indexOf(i) != -1) {
-                        colored += '<span class="matched">'+title[i]+'</span>';
+                        colored += '<span class="matched">'+char+'</span>';
                     } else {
-                        colored += title[i];
+                        colored += char;
                     }
                 }
                 return colored;
