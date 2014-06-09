@@ -314,6 +314,9 @@
                 this.hide();
                 return false;
             }
+            //Limit suggestions on 50
+            sugs = sugs.slice(0,50);
+            
             this.suggestionCache = sugs;
             if (sugs.length == 1) {
                 //Complete without dialog
