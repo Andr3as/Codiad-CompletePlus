@@ -19,7 +19,7 @@
         init: function() {
             var _this = this;
             //Register listener
-            amplify.subscribe('Complete.Normal', function(obj){
+            amplify.subscribe('Complete.Session', function(obj){
                 _this.suggestSnippets(obj);
             });
             amplify.subscribe('active.onOpen', function(path){
@@ -45,7 +45,7 @@
         //////////////////////////////////////////////////////////
         suggestSnippets: function(obj) {
             if (this.isReady[obj.syntax]) {
-                codiad.Complete.pluginNormal(this.compiled[obj.syntax]);
+                codiad.Complete.pluginSession(this.compiled[obj.syntax]);
             }
         },
         

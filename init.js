@@ -24,7 +24,7 @@
         isVisible   : false,
         prefix      : "",
         
-        api         : 1.0,
+        api         : 1.1,
         wordRegex   : /[^a-zA-Z_0-9\$\-]+/,
         
         extensions	: {},   //Autocomplete extensions
@@ -35,7 +35,8 @@
         suggestionCache     : null,     //Cache displayed suggestions
         suggestionTextCache : null,     //Cache suggestions of the text
         pluginInitCache     : null,     //Cache suggestions of plugins at start of init
-        pluginCache         : null,     //Cache suggestions of plugins at start of auto complete
+        pluginCache         : null,     //Cache suggestions of plugins on each change
+        pluginSessionCache	: null,		//Cache suggestions of plugins at start of session
         pluginMajCache      : null,     //Cache suggestions of plugins to display them matching or not
         
         //Default commands
@@ -251,6 +252,10 @@
             //Publish for Plugins
             amplify.publish( "Complete.Normal", publishObj);
             amplify.publish( "Complete.Major", publishObj);
+            //Suggestion for current session
+            if (!this.isVisible) {
+				amplify.publish( "Complete.Session", publishObj);
+            }
             
             var matches, fuzzilies;
             if (prefix !== "") {
@@ -265,8 +270,15 @@
             if (pluginSugs === null || pluginSugs.length === 0) {
                 pluginSugs  = this.pluginCache;
             } else {
-                pluginSugs  = this.push(pluginSugs ,this.pluginCache);
+                pluginSugs  = this.push(pluginSugs, this.pluginCache);
             }
+            //Add session suggestions
+            if (pluginSugs === null || pluginSugs.length === 0) {
+				pluginSugs  = this.pluginSessionCache;
+            } else {
+				pluginSugs  = this.push(pluginSugs, this.pluginSessionCache);
+            }
+            
             var pluginMatches   = this.getMatches(prefix, pluginSugs);
             var pluginFuzzilies = this.getFuzzilies(prefix, pluginSugs);
             //Add type info
@@ -336,6 +348,10 @@
         
         pluginNormal: function(sug) {
             return this.pluginSuggest("pluginCache", sug);
+        },
+        
+        pluginSession: function(sug) {
+			return this.pluginSuggest("pluginSessionCache", sug);
         },
         
         pluginMajor: function(sug) {
@@ -563,6 +579,7 @@
             this.suggestionCache        = null;
             this.suggestionTextCache    = null;
             this.pluginCache            = null;
+            this.pluginSessionCache		= null;
             this.pluginMajCache         = null;
         },
         
@@ -839,6 +856,12 @@
         //
         //////////////////////////////////////////////////////////
         push: function(cache, buf) {
+            if (cache === null) {
+                cache = [];
+            }
+            if (buf === null) {
+				return cache;
+            }
             if (cache.length === 0) {
                 return buf;
             }
@@ -916,11 +939,9 @@
         //////////////////////////////////////////////////////////
         _computeScrolling: function() {
 			var pos = $('.suggestion').index($('.active-suggestion')) - 4;
-			
 			if (pos < 0) {
                 pos = 0;
 			}
-			
 			$('#autocomplete').scrollTop(pos * 16);
         },
         
