@@ -565,6 +565,8 @@
             }
             //Select first suggestion
             $('.suggestion:first').addClass('active-suggestion');
+            //Scroll to top
+            this._computeScrolling();
         },
         
         //////////////////////////////////////////////////////////
