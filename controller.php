@@ -24,8 +24,15 @@
 				}
 			}
             $extensions = scandir($path);
-            $extensions = array_slice($extensions, 2);
-            echo '{"status":"success","extensions":' . json_encode($extensions) . '}';
+            $buffer = array();
+            foreach($extensions as $file) {
+				if ($file != "." && $file != "..") {
+					if (!is_dir($path . "/" . $file)) {
+						array_push($buffer, $file);
+					}
+				}
+            }
+            echo '{"status":"success","extensions":' . json_encode($buffer) . '}';
             break;
         
         default:
