@@ -35,6 +35,22 @@
             echo '{"status":"success","extensions":' . json_encode($buffer) . '}';
             break;
         
+        case 'getContent':
+			if (isset($_GET['path'])) {
+				$path = 'extensions/' . $_GET['path'];
+				//Catch upper path
+				$path = str_replace("..", "", $path);
+				if (is_dir($path)) {
+					echo '{"status":"error","message":"Invalid path!"}';
+					break;
+				}
+				$content = file_get_contents($path);
+				echo json_encode(array("status" => "success", "content" => $content));
+			} else {
+				echo '{"status":"error","message":"Missing path"}';
+			}
+			break;
+		
         default:
             echo '{"status":"error","message":"No Type"}';
             break;

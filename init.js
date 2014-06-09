@@ -29,6 +29,8 @@
         
         extensions	: {},   //Autocomplete extensions
         
+        snippetManager: null,
+        
         //Caches
         suggestionCache     : null,     //Cache displayed suggestions
         suggestionTextCache : null,     //Cache suggestions of the text
@@ -47,6 +49,15 @@
         
         init: function() {
             var _this               = this;
+            //Load library
+            $.getScript(this.path + 'Snippets.js').complete(function(){
+				var id = setInterval(function(){
+					if (typeof(ace.require) != 'undefined') {
+						clearInterval(id);
+						_this.snippetManager = ace.require("ace/snippets").snippetManager;
+					}
+				},500);
+            });
             //Load extensions
             $.getJSON(this.path + 'controller.php?action=getExtensions', function(result) {
 				$.each(result.extensions, function(i, ext){
@@ -387,7 +398,7 @@
                 }
             }
             //Insert suggestion
-            this.replacePrefix(object.suggestion);
+            this.replacePrefix(object.suggestion, object.isSnippet);
             return true;
         },
         
@@ -564,21 +575,28 @@
             if (sug === null || sug == [] || typeof(sug) == 'undefined') {
                 return false;
             }
-            var insText = '<li class="suggestion" ';
-            if (sug.type == "plugin") {
-                insText += 'data-type="plugin" data-suggestion="'+sug.suggestion+'" data-callback="'+sug.callback+'" ';
-                insText += '>'+sug.title+'</li>';
-            } else {
-                var indexes = this.removeNegativeIndexes(codiad.autocomplete.getMatchIndexes(this.prefix, sug.suggestion));
-                var title = "";
-                for (var i = 0; i < sug.suggestion.length; i++) {
+            var _this = this;
+            
+            var color = function(title) {
+                var indexes = _this.removeNegativeIndexes(codiad.autocomplete.getMatchIndexes(_this.prefix, title));
+                var colored = "";
+                for (var i = 0; i < title.length; i++) {
                     if (indexes.indexOf(i) != -1) {
-                        title += '<span class="matched">'+sug.suggestion[i]+'</span>';
+                        colored += '<span class="matched">'+title[i]+'</span>';
                     } else {
-                        title += sug.suggestion[i];
+                        colored += title[i];
                     }
                 }
-                insText += 'data-type="text" data-suggestion="'+sug.suggestion+'">'+title+'</li>';
+                return colored;
+            };
+            
+            var insText = '<li class="suggestion" data-suggestion="'+sug.suggestion+'" ';
+            if (sug.type == "plugin") {
+                insText += 'data-type="plugin" data-callback="'+sug.callback+'" >';
+                insText += color(sug.title) + '</li>';
+            } else {
+                insText += 'data-type="text">';
+                insText += color(sug.suggestion) + '</li>';
             }
             $('#suggestions').append(insText);
         },
@@ -904,9 +922,10 @@
         //  rank - (Optional) - {String} - Text to rank suggestion
         //  title - (Optional) - {String} - Text to display in autocomplete dialog
         //  callback - (Optional) - {String} - Amplify callback topic
+        //	isSnippet - (Optional) - {Boolean} - Wheater the suggestion is an snippet or not
         //
         //////////////////////////////////////////////////////////
-        pluginParser: function (sug, rank, title, callback) {
+        pluginParser: function (sug, rank, title, callback, isSnippet) {
             if (sug === null || typeof(sug) == 'undefined' || sug === "") {
                 return false;
             }
@@ -919,11 +938,15 @@
             if (callback === null || typeof(callback) == 'undefined') {
                 callback = "";
             }
+            if (isSnippet === null || typeof(isSnippet) == 'undefined') {
+				isSnippet = false;
+            }
             var obj = {
                     "title": title,
                     "suggestion": sug,
                     "ranking": rank,
-                    "callback": callback
+                    "callback": callback,
+                    "isSnippet": isSnippet
                 };
             return obj;
         },
@@ -935,9 +958,10 @@
         //  Parameter:
         //
         //  suggestion - {String} - Text to replace with
+        //	isSnippet - {Boolean} - If true run suggestion as snippet
         //
         //////////////////////////////////////////////////////////
-        replacePrefix: function(suggestion) {
+        replacePrefix: function(suggestion, isSnippet) {
             var _this = this;
             if (codiad.editor.getActive() === null) {
                 return false;
@@ -945,11 +969,16 @@
             if (typeof(suggestion) == 'undefined' || suggestion === null) {
                 return false;
             }
+            if (typeof(isSnippet) != 'boolean') {
+				isSnippet = false;
+            }
+            
+            var editor  = codiad.editor.getActive();
+            var session = editor.getSession();
+            
             //Complete function
-            var fn = function(position) {
-                var editor  = codiad.editor.getActive();
-                var session = editor.getSession();
-                /* Get the length of the word being typed. */
+            var range = function(position) {
+				/* Get the length of the word being typed. */
                 var token = session.getTokenAt(position.row, position.column);
                 if (!token) {
                     /* No token at the given position. */
@@ -959,26 +988,35 @@
                 var prefix = token.value.substr(0, position.column - token.start);
                 var prefixLength = prefix.split(_this.wordRegex).slice(-1)[0].length;
                 
-                var range = new Range(position.row,
+                return new Range(position.row,
                                     position.column - prefixLength,
                                     position.row,
                                     position.column);
-                session.replace(range, suggestion);
+            };
+            var fn = function(position) {
+                session.replace(range(position), suggestion);
                 return true;
             };
             
-            var editor = codiad.editor.getActive();
-            if (editor.inMultiSelectMode) {
-                //Multiselection
-                var multiRanges = editor.multiSelect.getAllRanges();
-                var result = [];
-                var one;
-                for (var i = 0; i < multiRanges.length; i++) {
-                    fn(multiRanges[i].cursor);
-                }
+            if (isSnippet) {
+				if (editor.inMultiSelectMode) {
+					codiad.message.notice("Snippets doesn't work on multiselection");
+				}
+				editor.getSession().selection.setSelectionRange(range(editor.getCursorPosition()), false);
+				this.snippetManager.insertSnippet(editor, suggestion);
             } else {
-                //Singleselection
-                fn(editor.getCursorPosition());
+				if (editor.inMultiSelectMode) {
+					//Multiselection
+					var multiRanges = editor.multiSelect.getAllRanges();
+					var result = [];
+					var one;
+					for (var i = 0; i < multiRanges.length; i++) {
+						fn(multiRanges[i].cursor);
+					}
+				} else {
+					//Singleselection
+					fn(editor.getCursorPosition());
+				}
             }
             return true;
         },
