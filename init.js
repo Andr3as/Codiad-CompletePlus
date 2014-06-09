@@ -420,6 +420,8 @@
                         $(entries[i-1]).addClass('active-suggestion');
                     }
                     $(entries[i]).removeClass('active-suggestion');
+                    //Scroll dialog
+                    this._computeScrolling();
                     return true;
                 }
             }
@@ -444,6 +446,8 @@
                         $(entries[i+1]).addClass('active-suggestion');
                     }
                     $(entries[i]).removeClass('active-suggestion');
+                    //Scroll dialog
+                    this._computeScrolling();
                     return true;
                 }
             }
@@ -903,6 +907,21 @@
                 var left = cursor.offset().left;
                 return left;
             }
+        },
+        
+        //////////////////////////////////////////////////////////
+        //
+        //  Compute scrolling for autocomplete dialog
+        //
+        //////////////////////////////////////////////////////////
+        _computeScrolling: function() {
+			var pos = $('.suggestion').index($('.active-suggestion')) - 4;
+			
+			if (pos < 0) {
+                pos = 0;
+			}
+			
+			$('#autocomplete').scrollTop(pos * 16);
         },
         
         /*{
