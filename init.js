@@ -314,8 +314,8 @@
                 this.hide();
                 return false;
             }
-            //Limit suggestions on 50
-            sugs = sugs.slice(0,50);
+            //Limit suggestions on 30
+            sugs = sugs.slice(0,30);
             
             this.suggestionCache = sugs;
             if (sugs.length == 1) {
