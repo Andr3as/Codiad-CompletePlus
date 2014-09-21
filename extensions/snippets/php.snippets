@@ -15,31 +15,31 @@ snippet ns
 snippet use
 	use ${1:Foo\Bar\Baz};
 	${2}
-snippet c
+snippet class
 	${1:abstract }class ${2:$FILENAME}
 	{
 		${3}
 	}
-snippet i
+snippet interface
 	interface ${1:$FILENAME}
 	{
 		${2}
 	}
-snippet t.
-	$this->${1}
-snippet f
+snippet $this
+	$${0}this->${1}
+snippet function
 	function ${1:foo}(${2:array }${3:$bar})
 	{
 		${4}
 	}
 # method
-snippet m
+snippet method
 	${1:abstract }${2:protected}${3: static} function ${4:foo}(${5:array }${6:$bar})
 	{
 		${7}
 	}
 # setter method
-snippet sm 
+snippet settermethod
 	/**
 	 * Sets the value of ${1:foo}
 	 *
@@ -49,11 +49,11 @@ snippet sm
 	 */
 	${5:public} function set${6:$2}(${7:$2 }$$1)
 	{
-		$this->${8:$1} = $$1;
-		return $this;
+		$${0}this->${8:$1} = $$1;
+		return $${0}this;
 	}${9}
 # getter method
-snippet gm
+snippet gettermethod
 	/**
 	 * Gets the value of ${1:foo}
 	 *
@@ -61,7 +61,7 @@ snippet gm
 	 */
 	${3:public} function get${4:$2}()
 	{
-		return $this->${5:$1};
+		return $${0}this->${5:$1};
 	}${6}
 #setter
 snippet $s
@@ -76,22 +76,22 @@ snippet =?:
 snippet ?:
 	${1:true} ? ${2:a} : ${3}
 
-snippet C
-	$_COOKIE['${1:variable}']${2}
-snippet E
-	$_ENV['${1:variable}']${2}
-snippet F
-	$_FILES['${1:variable}']${2}
-snippet G
-	$_GET['${1:variable}']${2}
-snippet P
-	$_POST['${1:variable}']${2}
-snippet R
-	$_REQUEST['${1:variable}']${2}
-snippet S
-	$_SERVER['${1:variable}']${2}
-snippet SS
-	$_SESSION['${1:variable}']${2}
+snippet COOKIE
+	$${0}_COOKIE['${1:variable}']${2}
+snippet ENV
+	$${0}_ENV['${1:variable}']${2}
+snippet FILES
+	$${0}_FILES['${1:variable}']${2}
+snippet GET
+	$${0}_GET['${1:variable}']${2}
+snippet POST
+	$${0}_POST['${1:variable}']${2}
+snippet REQUEST
+	$${0}_REQUEST['${1:variable}']${2}
+snippet SERVER
+	$${0}_SERVER['${1:variable}']${2}
+snippet SESSION
+	$${0}_SESSION['${1:variable}']${2}
 	
 # the following are old ones
 snippet inc
@@ -195,7 +195,7 @@ snippet doc_h
 	 */
 	
 # Interface
-snippet interface
+snippet interface_doc
 	/**
 	 * ${2:undocumented class}
 	 *
@@ -207,7 +207,7 @@ snippet interface
 		${5}
 	}
 # class ...
-snippet class
+snippet class_doc
 	/**
 	 * ${1}
 	 */
@@ -329,7 +329,7 @@ snippet http_redirect
 	header ("Location: ".URL); 
 	exit();
 # Getters & Setters
-snippet gs
+snippet get&set
 	/**
 	 * Gets the value of ${1:foo}
 	 *
@@ -337,7 +337,7 @@ snippet gs
 	 */
 	public function get${3:$2}()
 	{
-		return $this->${4:$1};
+		return $${0}this->${4:$1};
 	}
 
 	/**
@@ -349,8 +349,8 @@ snippet gs
 	 */
 	public function set$3(${7:$2 }$$1)
 	{
-		$this->$4 = $$1;
-		return $this;
+		$${0}this->$4 = $$1;
+		return $${0}this;
 	}${8}
 # anotation, get, and set, useful for doctrine
 snippet ags
@@ -363,13 +363,13 @@ snippet ags
 
 	public function get${4:$3}()
 	{
-		return $this->$3;
+		return $${0}this->$3;
 	}
 
 	public function set$4(${5:$4 }$${6:$3})
 	{
-		$this->$3 = $$6;
-		return $this;
+		$${0}this->$3 = $$6;
+		return $${0}this;
 	}
 snippet rett
 	return true;

@@ -86,7 +86,6 @@
                                 _this.loading[mode].splice(_this.loading[mode].indexOf(file),1);
                                 if (_this.loading[mode].length === 0) {
                                     _this.createObjects(mode);
-                                    console.log(mode);
                                 }
 							} else {
                                 codiad.message.error(result.message);
@@ -142,10 +141,15 @@
             if (typeof(this.isReady[mode]) != 'undefined') {
                 return;
             }
-            var obj;
-            var buffer = [];
+            var obj, ranking,
+                buffer = [];
             $.each(this.compiled[mode], function(i, item) {
-                obj = codiad.Complete.pluginParser(item.content, item.name.substr(0,item.name.indexOf("(")), item.name, null, true);
+                if (typeof(item.tabTrigger) != 'undefined') {
+                    ranking = item.tabTrigger;
+                } else {
+                    ranking = item.name.substr(0,item.name.indexOf("("));
+                }
+                obj = codiad.Complete.pluginParser(item.content, ranking, item.name, null, true);
                 buffer.push(obj);
             });
             
