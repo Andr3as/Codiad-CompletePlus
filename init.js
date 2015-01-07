@@ -395,7 +395,7 @@
         //
         //////////////////////////////////////////////////////////
         complete: function(object) {
-            var sug     = $('.active-suggestion').attr("data-suggestion");
+            var sug     = this.extensions.phpjs.htmlspecialchars_decode($('.active-suggestion').attr("data-suggestion"));
             var type    = $('.active-suggestion').attr("data-type");
             
             if (typeof(object) == 'undefined') {
@@ -618,7 +618,7 @@
                 return colored;
             };
             
-            var insText = '<li class="suggestion" data-suggestion="'+sug.suggestion+'" ';
+            var insText = '<li class="suggestion" data-suggestion="'+_this.extensions.phpjs.htmlentities(sug.suggestion)+'" ';
             if (sug.type == "plugin") {
                 insText += 'data-type="plugin" data-callback="'+sug.callback+'" >';
                 insText += color(sug.title) + '</li>';
