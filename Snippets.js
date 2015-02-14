@@ -28,15 +28,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-define(function(require, exports, module) {
+ace.define("ace/snippets", function(require, exports, module) {
 "use strict";
-var oop = ace.require("ace/lib/oop");
-var EventEmitter = ace.require("ace/lib/event_emitter").EventEmitter;
-var lang = ace.require("ace/lib/lang");
-var Range = ace.require("ace/range").Range;
-var Anchor = ace.require("ace/anchor").Anchor;
-var HashHandler = ace.require("ace/keyboard/hash_handler").HashHandler;
-var Tokenizer = ace.require("ace/tokenizer").Tokenizer;
+var oop = ace.require("./lib/oop");
+var EventEmitter = ace.require("./lib/event_emitter").EventEmitter;
+var lang = ace.require("./lib/lang");
+var Range = ace.require("./range").Range;
+var Anchor = ace.require("./anchor").Anchor;
+var HashHandler = ace.require("./keyboard/hash_handler").HashHandler;
+var Tokenizer = ace.require("./tokenizer").Tokenizer;
 var comparePoints = Range.comparePoints;
 
 var SnippetManager = function() {
@@ -497,6 +497,10 @@ var SnippetManager = function() {
         var snippetMap = this.snippetMap;
         var snippetNameMap = this.snippetNameMap;
         var self = this;
+        
+        if (!snippets) 
+            snippets = [];
+        
         function wrapRegexp(src) {
             if (src && !/^\^?\(.*\)\$?$|^\\b$/.test(src))
                 src = "(?:" + src + ")";
@@ -549,7 +553,7 @@ var SnippetManager = function() {
             s.endTriggerRe = new RegExp(s.endTrigger, "", true);
         }
 
-        if (snippets.content)
+        if (snippets && snippets.content)
             addSnippet(snippets);
         else if (Array.isArray(snippets))
             snippets.forEach(addSnippet);
@@ -920,7 +924,7 @@ var moveRelative = function(point, start) {
 };
 
 
-ace.require("ace/lib/dom").importCssString("\
+ace.require("./lib/dom").importCssString("\
 .ace_snippet-marker {\
     -moz-box-sizing: border-box;\
     box-sizing: border-box;\
@@ -930,9 +934,9 @@ ace.require("ace/lib/dom").importCssString("\
 }");
 
 exports.snippetManager = new SnippetManager();
+codiad.Complete.snippetManager = new SnippetManager();
 
-
-var Editor = ace.require("ace/editor").Editor;
+var Editor = ace.require("./editor").Editor;
 (function() {
     this.insertSnippet = function(content, options) {
         return exports.snippetManager.insertSnippet(this, content, options);

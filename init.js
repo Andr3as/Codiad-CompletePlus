@@ -49,21 +49,25 @@
         defaultIndentExec   : null,
         
         init: function() {
-            var _this               = this;
+            var _this = this;
             //Load library
-            $.getScript(this.path + 'Snippets.js').complete(function(){
-				var id = setInterval(function(){
-					if (typeof(ace.require) != 'undefined') {
-						clearInterval(id);
-						_this.snippetManager = ace.require("ace/snippets").snippetManager;
-					}
-				},500);
+            $.getScript(_this.path + 'Snippets.js').complete(function(){
+                var id = setInterval(function(){
+                    if (typeof(ace.require) != 'undefined') {
+                        if (typeof(ace.require("ace/snippets")) != 'undefined') {
+                            if (typeof(ace.require("ace/snippets").snippetManager) != 'undefined') {
+                                clearInterval(id);
+                                _this.snippetManager = ace.require("ace/snippets").snippetManager;
+                            }
+                        }
+                    }
+                },250);
             });
             //Load extensions
             $.getJSON(this.path + 'controller.php?action=getExtensions', function(result) {
-				$.each(result.extensions, function(i, ext){
-					$.getScript(_this.path + 'extensions/' + ext);
-				});
+                $.each(result.extensions, function(i, ext){
+                    $.getScript(_this.path + 'extensions/' + ext);
+                });
             });
             
             this.$comUp             = this.goUp.bind(this);
@@ -91,7 +95,7 @@
         //
         //  Set key bindings and publish Complete.Init
         //
-		//////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////
         setKeyBindings: function() {
             var _this = this;
             if (codiad.editor.getActive() !== null) {
