@@ -84,6 +84,13 @@
             amplify.subscribe('active.onOpen', function(path){
                 setTimeout(_this.setKeyBindings(), 50);
             });
+            //Hide dialog on file close
+            amplify.subscribe('active.onClose', function(){
+                _this.hide();
+            });
+            amplify.subscribe('active.onRemoveAll', function(){
+                _this.hide(); 
+            });
             //Get init data
             setTimeout(function(){
                 //Publish plugin listener
