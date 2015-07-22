@@ -58,10 +58,12 @@
                             if (typeof(ace.require("ace/snippets").snippetManager) != 'undefined') {
                                 clearInterval(id);
                                 _this.snippetManager = ace.require("ace/snippets").snippetManager;
+                                //console.log("require");
                             }
                         }
                     }
                 },250);
+                //console.log(id);
             });
             //Load extensions
             $.getJSON(this.path + 'controller.php?action=getExtensions', function(result) {
@@ -118,6 +120,14 @@
                         _this.suggest();
                     }
                 });
+                
+                if (this.__onKeyUpEnabled()) {
+                    $('.editor').keyup(function(e){
+                        if (e.which >= 48 && e.which <= 90) {
+                            _this.suggest();
+                        } 
+                    });
+                }
             }
         },
         
@@ -885,6 +895,9 @@
             }
             if ($.isArray(buf)) {
                 for (var i = 0; i < buf.length; i++) {
+                    /*if (i < 10) {
+                        console.log(buf[i]);
+                    }*/
                     cache.push(buf[i]);
                 }
             } else {
@@ -1101,6 +1114,16 @@
             } else {
                 return false;
             }
+        },
+        
+        __onKeyUpEnabled: function() {
+            var setting = localStorage.getItem('codiad.plugin.completeplus.keyup');
+            if (setting === null) {
+                return false;
+            } else if (setting === "true") {
+                return true;
+            }
+            return false;
         }
     };
 
