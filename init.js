@@ -416,12 +416,11 @@
         //
         //////////////////////////////////////////////////////////
         complete: function(object) {
-            var sug     = this.extensions.phpjs.htmlspecialchars_decode($('.active-suggestion').attr("data-suggestion"));
-            var type    = $('.active-suggestion').attr("data-type");
-            
-            if (typeof(object) == 'undefined') {
+            if (typeof(object) === 'undefined') {
+                var sug = this.extensions.phpjs.htmlspecialchars_decode($('.active-suggestion').attr("data-suggestion"));
                 object = this.getObjectOutArray(sug, this.suggestionCache);
             }
+            
             this.hide();
             if (object === false) {
                 return false;
@@ -429,7 +428,6 @@
             
             if (object.type == "plugin") {
                 if (object.callback !== "") {
-                    this.hide();
                     //Workaround for return command
                     setTimeout(function(){
                         amplify.publish(object.callback, object);
