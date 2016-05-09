@@ -534,17 +534,32 @@
         //
         //////////////////////////////////////////////////////////
         onDocumentChange: function (e) {
-            var _this = this;
-            if (e.data.text.search(/^\s+$/) !== -1) {
+            var _this = this, text, action, range;
+            if (typeof(e.data) == 'undefined') {
+                text = e.text || e.lines[0] || "";
+                action = e.action;
+                if (typeof(e.range) == 'undefined') {
+                    range = {start: e.start, end: e.end};
+                } else {
+                    range = e.range;
+                }
+            } else {
+                text = e.data.text;
+                action = e.data.action;
+                range = e.data.range;
+            }
+            console.log(e);
+            
+            if (text.search(/^\s+$/) !== -1) {
                 this.hide();
                 return;
             }
             
             var position = null;
-            if (e.data.action === 'insertText') {
-                position = e.data.range.end;
-            } else if (e.data.action === 'removeText') {
-                position = e.data.range.start;
+            if (action === 'insertText' || action === 'insert') {
+                position = range.end;
+            } else if (action === 'removeText' || action == 'remove') {
+                position = range.start;
             } else {
                 alert('Unkown document change action.');
             }
