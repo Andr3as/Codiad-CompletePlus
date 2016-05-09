@@ -548,7 +548,6 @@
                 action = e.data.action;
                 range = e.data.range;
             }
-            console.log(e);
             
             if (text.search(/^\s+$/) !== -1) {
                 this.hide();
