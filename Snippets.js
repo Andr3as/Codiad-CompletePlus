@@ -668,10 +668,19 @@ var TabstopManager = function(editor) {
     };
 
     this.onChange = function(e) {
-        var changeRange = e.data.range;
-        var isRemove = e.data.action[0] == "r";
-        var start = changeRange.start;
-        var end = changeRange.end;
+        var changeRange, isRemove, start, end;
+        if (typeof(e.data) == 'undefined') {
+            changeRange = e;
+            isRemove = e.action[0] == "r";
+            start = e.start;
+            end = e.end;
+        } else {
+            changeRange = e.data.range;
+            isRemove = e.data.action[0] == "r";
+            start = changeRange.start;
+            end = changeRange.end;
+        }
+        
         var startRow = start.row;
         var endRow = end.row;
         var lineDif = endRow - startRow;
