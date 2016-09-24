@@ -339,7 +339,8 @@
             sugs = sugs.slice(0,30);
             
             this.suggestionCache = sugs;
-            if (sugs.length == 1) {
+            //Smart complete enabled?
+            if (sugs.length == 1 && this.__onSmartCompleteEnabled() && !this.__onKeyUpEnabled()) {
                 //Complete without dialog
                 this.complete(sugs[0]);
             } else {
@@ -1130,13 +1131,16 @@
         
         __onKeyUpEnabled: function() {
             var setting = localStorage.getItem('codiad.plugin.completeplus.keyup');
+            return false || setting == "true";
+        },
+        
+        __onSmartCompleteEnabled: function() {
+            var setting = localStorage.getItem('codiad.plugin.completeplus.smartComplete');
             if (setting === null) {
-                return false;
-            } else if (setting === "true") {
                 return true;
             }
-            return false;
-        }
+            return false || setting == "true";
+       } 
     };
 
 })(this, jQuery);
