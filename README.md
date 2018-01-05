@@ -36,7 +36,7 @@ You want to write your own extension and contribute it, then fork the repo and c
 Use tab to jump between tabstops to enter content
 ![Example](https://github.com/Andr3as/Codiad-CompletePlus/raw/img/tabstops.gif "Example")
 
-### JS / 
+### JS / CSS / ...
 
 #### Additonal snippets
 
