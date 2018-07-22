@@ -58,12 +58,10 @@
                             if (typeof(ace.require("ace/snippets").snippetManager) != 'undefined') {
                                 clearInterval(id);
                                 _this.snippetManager = ace.require("ace/snippets").snippetManager;
-                                //console.log("require");
                             }
                         }
                     }
                 },250);
-                //console.log(id);
             });
             //Load extensions
             $.getJSON(this.path + 'controller.php?action=getExtensions', function(result) {
@@ -245,9 +243,9 @@
             }
             //Get prefix
             if (typeof(position) == 'undefined') {
-                position    = codiad.editor.getActive().getCursorPosition();
+                position = codiad.editor.getActive().getCursorPosition();
             }
-            var token   = codiad.editor.getActive().getSession().getTokenAt(position.row,position.column);
+            var token = codiad.editor.getActive().getSession().getTokenAt(position.row,position.column);
             if (token === null) {
                 this.hide();
                 return false;
@@ -908,9 +906,6 @@
             }
             if ($.isArray(buf)) {
                 for (var i = 0; i < buf.length; i++) {
-                    /*if (i < 10) {
-                        console.log(buf[i]);
-                    }*/
                     cache.push(buf[i]);
                 }
             } else {

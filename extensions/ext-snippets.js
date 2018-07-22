@@ -21,6 +21,17 @@
             //Register listener
             amplify.subscribe('Complete.Session', function(obj){
                 _this.suggestSnippets(obj);
+                // Hardcode for c and jquery
+				switch (obj.syntax) {
+                    case 'c_cpp':
+                        obj.syntax = 'c';
+                        _this.suggestSnippets(obj);
+                        break;
+                    case 'javascript':
+                        obj.syntax = 'javascript-jquery';
+                        _this.suggestSnippets(obj);
+                        break;
+				}
             });
             amplify.subscribe('active.onOpen', function(path){
 				var ext     = codiad.filemanager.getExtension(path);
@@ -28,6 +39,15 @@
 				if (typeof(_this.compiled[mode]) == 'undefined') {
 					//Load snippets
 					_this.loadSnippets(mode);
+					// Hardcode for c and jquery
+					switch (mode) {
+                        case 'c_cpp':
+                            _this.loadSnippets('c');
+                            break;
+                        case 'javascript':
+                            _this.loadSnippets('javascript-jquery');
+                            break;
+					}
 				}
             });
             //Load available snippets
